@@ -1,2 +1,237 @@
-# LightGCL-
-LightGCL++ improves recommendations with semantic embeddings and adaptive SVD weighting
+# LightGCL++
+
+**LightGCL++: Improving Graph Contrastive Learning with Text Semantics and Adaptive SVD Weights**
+
+LightGCL++ extends the original LightGCL framework by incorporating semantic information and adaptive contrastive-learning weights. The project targets two limitations of graph-based recommendation systems: semantic blindness and popularity bias.
+
+## Abstract
+
+Graph contrastive learning has demonstrated strong performance in recommendation systems by learning representations from user–item interaction graphs. However, existing graph-based methods such as LightGCL mainly rely on collaborative signals and may overlook the semantic information contained in item descriptions. They may also provide insufficient learning signals for users and items with sparse interactions.
+
+LightGCL++ addresses these limitations through two components: a semantic view and adaptive SVD weighting. The semantic view extracts item representations using a frozen pretrained text encoder and applies attention to aggregate users’ historical item information. Adaptive SVD weighting assigns personalized weights to users and items according to their interaction degree and SVD reconstruction confidence.
+
+Experiments on Yelp, Amazon Books, and Gowalla show that LightGCL++ consistently outperforms the original LightGCL in Recall@20 and NDCG@20. The framework is also evaluated with multiple pretrained text encoders, including E5-Small-V2, MiniLM-L6-v2, and BGE-small-en-v1.5.
+
+## Introduction
+
+Graph-based recommendation systems represent users and items as nodes connected by observed interactions. Graph neural networks can propagate collaborative information through this structure and learn effective user and item embeddings.
+
+LightGCL introduces a lightweight graph contrastive learning framework that constructs two complementary views:
+
+1. A graph view generated through graph convolution.
+2. An SVD-based global view generated from a low-rank approximation of the interaction matrix.
+
+Although LightGCL is efficient and effective, it has two main limitations.
+
+### Semantic Blindness
+
+LightGCL primarily learns from user–item interaction structures. It does not directly utilize semantic information from item titles or descriptions. Consequently, items with similar meanings may not be represented closely when their interaction patterns differ.
+
+### Popularity Bias
+
+Users and items with many interactions generally receive stronger and more reliable learning signals. In contrast, sparse users and less popular items may be underrepresented during contrastive learning.
+
+To address these problems, LightGCL++ introduces:
+
+- A **Semantic View** that integrates pretrained text embeddings into graph contrastive learning.
+- An **Adaptive SVD Weighting** mechanism that adjusts contrastive-loss contributions for individual users and items.
+
+The complete model jointly optimizes recommendation loss, graph–SVD contrastive loss, and graph–semantic contrastive loss.
+
+## Method
+
+### Overview
+
+LightGCL++ contains three representation views:
+
+- **Graph Embedding:** learned from the original user–item graph using graph convolution.
+- **SVD Embedding:** generated from an approximate SVD reconstruction of the interaction graph.
+- **Semantic Embedding:** generated from item textual information using a pretrained text encoder and attention-based user aggregation.
+
+The graph representation is aligned with both the SVD and semantic representations using separate contrastive objectives.
+
+<img width="1267" height="702" alt="image" src="https://github.com/user-attachments/assets/8619def2-2473-470d-936b-bbdbbd1ac58f" />
+
+### 1. Graph View
+
+The graph view follows the original LightGCL architecture. User and item embeddings are propagated through the user–item interaction graph using graph convolutional layers.
+
+This view captures local collaborative relationships based on observed interactions.
+
+### 2. SVD View
+
+The SVD view represents global collaborative patterns through a low-rank approximation of the user–item interaction matrix.
+
+Approximate SVD is applied to reconstruct a global graph structure. Embeddings learned from this reconstructed graph are used as an additional contrastive-learning view.
+
+### 3. Semantic View
+
+The semantic view incorporates textual information from items into the recommendation model.
+
+#### Item Semantic Embeddings
+
+Item titles or descriptions are encoded using a frozen pretrained sentence encoder. The primary encoder used in the experiments is:
+
+- `E5-Small-V2`
+
+Additional encoder experiments are conducted with:
+
+- `MiniLM-L6-v2`
+- `BGE-small-en-v1.5`
+
+The pretrained encoder remains frozen during training to reduce computational cost and preserve its pretrained semantic knowledge.
+
+#### User Semantic Embeddings
+
+A user semantic representation is generated by aggregating the semantic embeddings of items in the user’s interaction history.
+
+Instead of applying simple mean pooling, LightGCL++ uses an attention mechanism to assign different importance weights to historical items. The attention weights are learned through the contrastive-learning objective.
+
+A small projection layer then maps semantic embeddings into the same dimensional space as the graph embeddings.
+
+### 4. Adaptive SVD Weighting
+
+The original contrastive loss treats users and items equally. LightGCL++ assigns a personalized weight to each user or item when computing the graph–SVD contrastive loss.
+
+The adaptive weight depends on two factors.
+
+#### Degree Factor
+
+Users or items with fewer interactions receive higher weights. This increases the learning signal for sparse users and less popular items.
+
+#### Confidence Factor
+
+SVD reconstruction quality is used as a confidence signal. If a user or item is reconstructed poorly by SVD, its weight is reduced to prevent noisy global representations from dominating the training process.
+
+The final adaptive weights are normalized so that their mean equals one. This normalization keeps the overall scale of the contrastive loss stable.
+
+### 5. Contrastive Learning Objectives
+
+LightGCL++ uses two separate InfoNCE contrastive losses.
+
+#### Graph–SVD Contrastive Loss
+
+This objective aligns graph embeddings with SVD embeddings:
+
+\[
+\mathcal{L}_{cl}^{svd}
+\]
+
+Adaptive SVD weights are applied to this loss.
+
+#### Graph–Semantic Contrastive Loss
+
+This objective aligns graph embeddings with semantic embeddings:
+
+\[
+\mathcal{L}_{cl}^{sem}
+\]
+
+#### Final Objective
+
+The final training objective combines Bayesian Personalized Ranking loss with the two contrastive-learning objectives:
+
+\[
+\mathcal{L}
+=
+\mathcal{L}_{BPR}
++
+\lambda_1 \mathcal{L}_{cl}^{svd,ada}
++
+\lambda_2 \mathcal{L}_{cl}^{sem}
+\]
+
+where:
+
+- \(\mathcal{L}_{BPR}\) is the recommendation ranking loss.
+- \(\mathcal{L}_{cl}^{svd,ada}\) is the adaptively weighted graph–SVD contrastive loss.
+- \(\mathcal{L}_{cl}^{sem}\) is the graph–semantic contrastive loss.
+- \(\lambda_1\) and \(\lambda_2\) control the contributions of the contrastive objectives.
+
+## Experimental Setup
+
+LightGCL++ is evaluated on three public recommendation datasets:
+
+| Dataset | Number of interactions |
+|---|---:|
+| Yelp | 1,069,128 |
+| Amazon Books | 2,240,156 |
+| Gowalla | 1,172,425 |
+
+The original graph structures and data splits from LightGCL are retained. No custom graph preprocessing or re-splitting is applied, ensuring direct comparability with the baseline.
+
+The evaluation metrics are:
+
+- Recall@20
+- NDCG@20
+
+## Results
+
+### Overall Performance
+
+| Dataset | Metric | LightGCL | LightGCL++ | Improvement |
+|---|---|---:|---:|---:|
+| Yelp | Recall@20 | 0.0793 | **0.0884** | **+11.48%** |
+| Yelp | NDCG@20 | 0.0668 | **0.0758** | **+13.47%** |
+| Amazon Books | Recall@20 | 0.0585 | **0.0798** | **+36.41%** |
+| Amazon Books | NDCG@20 | 0.0436 | **0.0624** | **+43.12%** |
+| Gowalla | Recall@20 | 0.1578 | **0.1753** | **+11.09%** |
+| Gowalla | NDCG@20 | 0.0935 | **0.1038** | **+11.02%** |
+
+LightGCL++ consistently improves recommendation performance across all three datasets. The largest improvement is observed on Amazon Books, where the model achieves a 43.12% relative improvement in NDCG@20.
+
+<img width="1286" height="678" alt="image" src="https://github.com/user-attachments/assets/116dfd7f-fa81-4aed-8c79-83444bf58c6c" />
+
+### Ablation Study
+
+Ablation experiments evaluate the individual contributions of semantic attention and adaptive SVD weighting.
+
+#### Yelp
+
+| Variant | Recall@20 | Drop from full model |
+|---|---:|---:|
+| LightGCL baseline | 0.0793 | 10.29% |
+| Semantic attention only | 0.0862 | 2.49% |
+| Adaptive SVD only | 0.0880 | 0.45% |
+| LightGCL++ | **0.0884** | — |
+
+#### Amazon Books
+
+| Variant | Recall@20 | Drop from full model |
+|---|---:|---:|
+| LightGCL baseline | 0.0585 | 36.41% |
+| Semantic attention only | 0.0768 | 3.75% |
+| Adaptive SVD only | 0.0783 | 1.87% |
+| LightGCL++ | **0.0798** | — |
+
+The ablation results indicate that both proposed components improve recommendation performance. Adaptive SVD weighting provides a particularly strong contribution, while the full model obtains the best overall results.
+
+### Semantic Encoder Analysis
+
+LightGCL++ is evaluated with multiple pretrained semantic encoders.
+
+#### Yelp
+
+| Encoder | Semantic-only Recall@20 | Full LightGCL++ Recall@20 |
+|---|---:|---:|
+| E5-Small-V2 | 0.0862 | **0.0884** |
+| MiniLM-L6-v2 | 0.0860 | **0.0882** |
+| BGE-small-en-v1.5 | 0.0862 | **0.0883** |
+
+#### Amazon Books
+
+| Encoder | Semantic-only Recall@20 | Full LightGCL++ Recall@20 |
+|---|---:|---:|
+| E5-Small-V2 | 0.0768 | **0.0798** |
+| MiniLM-L6-v2 | 0.0774 | **0.0809** |
+| BGE-small-en-v1.5 | 0.0765 | **0.0810** |
+
+The results remain stable across different pretrained encoders. This suggests that LightGCL++ is not dependent on a single text-embedding model and can generalize across different semantic representations.
+
+## Conclusion
+
+LightGCL++ enhances LightGCL by combining collaborative graph information, global SVD representations, and textual semantics.
+
+The semantic view helps the model capture relationships that cannot be observed directly from interaction graphs. Adaptive SVD weighting provides more balanced learning signals for sparse users and items while reducing the influence of unreliable SVD reconstructions.
+
+Experiments on Yelp, Amazon Books, and Gowalla demonstrate consistent improvements over LightGCL, with gains of up to 43.12% in NDCG@20. Ablation studies confirm that both semantic attention and adaptive SVD weighting contribute to the final performance. Results across E5-Small-V2, MiniLM-L6-v2, and BGE-small-en-v1.5 further demonstrate the robustness of the proposed framework.
