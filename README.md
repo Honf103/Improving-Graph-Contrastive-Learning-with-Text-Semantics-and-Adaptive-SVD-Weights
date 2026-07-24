@@ -107,46 +107,29 @@ The final adaptive weights are normalized so that their mean equals one. This no
 
 ### 5. Contrastive Learning Objectives
 
-LightGCL++ uses two separate InfoNCE contrastive losses.
+LightGCL++ uses two complementary contrastive-learning objectives to align the graph representation with the SVD and semantic views.
 
-#### Graph–SVD Contrastive Loss
+#### Graph–SVD Contrastive Learning
 
-This objective aligns graph embeddings with SVD embeddings:
+The graph–SVD objective encourages user and item embeddings learned from the interaction graph to remain consistent with the global collaborative patterns captured by SVD.
 
-\[
-\mathcal{L}_{cl}^{svd}
-\]
+Adaptive weights are applied to this objective. Users and items with fewer interactions receive stronger learning signals, while samples with unreliable SVD reconstructions receive lower weights to reduce noise.
 
-Adaptive SVD weights are applied to this loss.
+#### Graph–Semantic Contrastive Learning
 
-#### Graph–Semantic Contrastive Loss
+The graph–semantic objective aligns collaborative graph embeddings with semantic representations extracted from item titles or descriptions.
 
-This objective aligns graph embeddings with semantic embeddings:
+For items, this objective connects their interaction-based representations with their textual meanings. For users, it aligns graph embeddings with semantic preferences aggregated from previously interacted items through the attention module.
 
-\[
-\mathcal{L}_{cl}^{sem}
-\]
+#### Combined Training Objective
 
-#### Final Objective
+The final training process combines three components:
 
-The final training objective combines Bayesian Personalized Ranking loss with the two contrastive-learning objectives:
+- A recommendation ranking objective for learning user preferences.
+- An adaptively weighted graph–SVD contrastive objective for capturing global collaborative structure.
+- A graph–semantic contrastive objective for incorporating textual information.
 
-\[
-\mathcal{L}
-=
-\mathcal{L}_{BPR}
-+
-\lambda_1 \mathcal{L}_{cl}^{svd,ada}
-+
-\lambda_2 \mathcal{L}_{cl}^{sem}
-\]
-
-where:
-
-- \(\mathcal{L}_{BPR}\) is the recommendation ranking loss.
-- \(\mathcal{L}_{cl}^{svd,ada}\) is the adaptively weighted graph–SVD contrastive loss.
-- \(\mathcal{L}_{cl}^{sem}\) is the graph–semantic contrastive loss.
-- \(\lambda_1\) and \(\lambda_2\) control the contributions of the contrastive objectives.
+The contributions of the two contrastive objectives are controlled by separate hyperparameters. Together, these objectives allow LightGCL++ to learn from local graph interactions, global SVD patterns, and item semantics within a unified framework.
 
 ## Experimental Setup
 
