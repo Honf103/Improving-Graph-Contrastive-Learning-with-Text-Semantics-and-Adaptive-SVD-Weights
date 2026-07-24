@@ -1,6 +1,4 @@
-# LightGCL++
-
-**LightGCL++: Improving Graph Contrastive Learning with Text Semantics and Adaptive SVD Weights**
+# LightGCL++: Improving Graph Contrastive Learning with Text Semantics and Adaptive SVD Weights
 
 LightGCL++ extends the original LightGCL framework by incorporating semantic information and adaptive contrastive-learning weights. The project targets two limitations of graph-based recommendation systems: semantic blindness and popularity bias.
 
